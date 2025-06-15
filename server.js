@@ -28,7 +28,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "*",
+    origin: process.env.SOCKET_CORS_ORIGIN || "*",
     methods: ["GET", "POST"]
   }
 });
@@ -45,7 +45,7 @@ app.use(limiter);
 
 // CORS configuration
 app.use(cors({
-  origin: '*',
+  origin: process.env.FRONTEND_URL || '*',
   credentials: true
 }));
 
@@ -55,14 +55,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Static files
 app.use('/uploads', express.static('uploads'));
-
-// Database connection
-mongoose.connect(process.env.MONGODB_URI)
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
-
-// Socket.io setup
-socketHandler(io);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -76,8 +68,8 @@ app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     message: 'SalliH API is running',
     timestamp: new Date().toISOString()
   });
@@ -91,11 +83,25 @@ app.use('*', (req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
+// Connect to MongoDB and start the server only if successful
 const PORT = process.env.PORT || 5000;
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => {
+  console.log('✅ Connected to MongoDB');
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`SalliH server running on port ${PORT}`);
+  // Start socket.io handler
+  socketHandler(io);
+
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 SalliH server running on port ${PORT}`);
+  });
+})
+.catch(err => {
+  console.error('❌ MongoDB connection error:', err);
+  process.exit(1); // Important for Railway to detect failure
 });
 
 module.exports = { app, io };
-
