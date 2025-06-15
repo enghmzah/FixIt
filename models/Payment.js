@@ -154,19 +154,28 @@ const paymentSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-});
+}, { timestamps: true });
 
 // Generate unique payment ID
-paymentSchema.pre('save', function(next) {
+paymentSchema.pre('save', async function(next) {
   if (this.isNew) {
     const prefix = this.type === 'activation_fee' ? 'ACT' : 
                    this.type === 'booking_payment' ? 'BKG' :
                    this.type === 'withdrawal' ? 'WTH' :
                    this.type === 'refund' ? 'REF' : 'PAY';
     
-    this.paymentId = prefix + Date.now() + Math.random().toString(36).substr(2, 5).toUpperCase();
+    let isUnique = false;
+    while (!isUnique) {
+      const candidateId = prefix + Date.now() + 
+        Math.random().toString(36).substring(2, 7).toUpperCase();
+      
+      const exists = await this.constructor.findOne({ paymentId: candidateId });
+      if (!exists) {
+        this.paymentId = candidateId;
+        isUnique = true;
+      }
+    }
   }
-  
   this.updatedAt = Date.now();
   next();
 });
@@ -270,7 +279,6 @@ paymentSchema.statics.getPlatformRevenue = async function(startDate, endDate) {
 // Indexes for performance
 paymentSchema.index({ user: 1, createdAt: -1 });
 paymentSchema.index({ booking: 1 });
-paymentSchema.index({ paymentId: 1 });
 paymentSchema.index({ type: 1, status: 1 });
 paymentSchema.index({ method: 1 });
 paymentSchema.index({ externalPaymentId: 1 });

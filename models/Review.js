@@ -115,39 +115,32 @@ const reviewSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     }]
-  },
-  
-  // Timestamps
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
   }
-});
-
-// Update the updatedAt field before saving
-reviewSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
-  next();
+}, { 
+  // Enable automatic timestamps
+  timestamps: true 
 });
 
 // Method to mark review as helpful
 reviewSchema.methods.markHelpful = function(userId) {
-  if (!this.helpful.users.includes(userId)) {
+  const userIdStr = userId.toString();
+  if (!this.helpful.users.some(id => id.toString() === userIdStr)) {
     this.helpful.users.push(userId);
-    this.helpful.count += 1;
+    this.helpful.count = this.helpful.users.length;
   }
 };
 
 // Method to unmark review as helpful
 reviewSchema.methods.unmarkHelpful = function(userId) {
-  const index = this.helpful.users.indexOf(userId);
-  if (index > -1) {
-    this.helpful.users.splice(index, 1);
-    this.helpful.count -= 1;
+  const userIdStr = userId.toString();
+  const initialLength = this.helpful.users.length;
+  
+  this.helpful.users = this.helpful.users.filter(
+    id => id.toString() !== userIdStr
+  );
+  
+  if (this.helpful.users.length < initialLength) {
+    this.helpful.count = this.helpful.users.length;
   }
 };
 
@@ -208,13 +201,13 @@ reviewSchema.statics.getProviderRatingDistribution = async function(providerId) 
   return distribution;
 };
 
-// Indexes for performance
+// Optimized indexes
 reviewSchema.index({ provider: 1, createdAt: -1 });
 reviewSchema.index({ client: 1, createdAt: -1 });
 reviewSchema.index({ service: 1, createdAt: -1 });
-reviewSchema.index({ booking: 1 });
 reviewSchema.index({ 'rating.overall': -1 });
 reviewSchema.index({ isVisible: 1, isFlagged: 1 });
+reviewSchema.index({ provider: 1, isVisible: 1 }); // Added for provider dashboard
+reviewSchema.index({ service: 1, 'rating.overall': -1 }); // Added for service ratings
 
 module.exports = mongoose.model('Review', reviewSchema);
-

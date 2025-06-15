@@ -4,7 +4,7 @@ const bookingSchema = new mongoose.Schema({
   // Basic Information
   bookingId: {
     type: String,
-    unique: true,
+    unique: true, // Creates index automatically
     required: true
   },
   
@@ -56,7 +56,7 @@ const bookingSchema = new mongoose.Schema({
       lat: Number,
       lng: Number
     },
-    additionalInfo: String // apartment number, floor, etc.
+    additionalInfo: String
   },
   
   // Service Details
@@ -67,7 +67,7 @@ const bookingSchema = new mongoose.Schema({
       name: String,
       price: Number
     }],
-    estimatedDuration: Number, // minutes
+    estimatedDuration: Number,
     specialInstructions: String
   },
   
@@ -132,8 +132,8 @@ const bookingSchema = new mongoose.Schema({
   execution: {
     startedAt: Date,
     completedAt: Date,
-    actualDuration: Number, // minutes
-    workPhotos: [String], // URLs to photos taken during work
+    actualDuration: Number,
+    workPhotos: [String],
     completionNotes: String
   },
   
@@ -151,7 +151,7 @@ const bookingSchema = new mongoose.Schema({
     },
     transactionId: String,
     paidAt: Date,
-    paymentIntentId: String, // for Stripe
+    paymentIntentId: String,
     refundId: String,
     refundedAt: Date
   },
@@ -163,7 +163,7 @@ const bookingSchema = new mongoose.Schema({
       default: false
     },
     confirmedAt: Date,
-    autoConfirmAt: Date, // 48 hours after completion
+    autoConfirmAt: Date,
     confirmationMethod: {
       type: String,
       enum: ['manual', 'auto']
@@ -183,7 +183,7 @@ const bookingSchema = new mongoose.Schema({
     disputedAt: Date,
     reason: String,
     description: String,
-    evidence: [String], // URLs to evidence files
+    evidence: [String],
     resolution: {
       resolvedBy: {
         type: mongoose.Schema.Types.ObjectId,
@@ -227,27 +227,32 @@ const bookingSchema = new mongoose.Schema({
     reminderSent: Boolean,
     completionNotified: Boolean,
     paymentProcessed: Boolean
-  },
-  
-  // Timestamps
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
   }
+}, {
+  // Enable automatic timestamps
+  timestamps: true
 });
 
 // Generate unique booking ID
-bookingSchema.pre('save', function(next) {
+bookingSchema.pre('save', async function(next) {
   if (this.isNew) {
-    this.bookingId = 'SLH' + Date.now() + Math.random().toString(36).substr(2, 5).toUpperCase();
+    const prefix = 'SLH';
+    let isUnique = false;
+    
+    while (!isUnique) {
+      const candidateId = prefix + Date.now() + 
+        Math.random().toString(36).substring(2, 7).toUpperCase();
+      
+      const exists = await this.constructor.findOne({ bookingId: candidateId });
+      if (!exists) {
+        this.bookingId = candidateId;
+        isUnique = true;
+      }
+    }
     
     // Set auto-confirmation date if completed
     if (this.status === 'completed' && !this.confirmation.autoConfirmAt) {
-      this.confirmation.autoConfirmAt = new Date(Date.now() + (48 * 60 * 60 * 1000)); // 48 hours
+      this.confirmation.autoConfirmAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
     }
   }
   
@@ -267,7 +272,7 @@ bookingSchema.methods.updateStatus = function(newStatus, updatedBy, reason) {
   // Set completion time if status is completed
   if (newStatus === 'completed') {
     this.execution.completedAt = new Date();
-    this.confirmation.autoConfirmAt = new Date(Date.now() + (48 * 60 * 60 * 1000));
+    this.confirmation.autoConfirmAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
   }
 };
 
@@ -275,11 +280,9 @@ bookingSchema.methods.updateStatus = function(newStatus, updatedBy, reason) {
 bookingSchema.methods.calculateTotal = function() {
   const servicePrice = this.pricing.servicePrice || 0;
   const addOnsPrice = this.pricing.addOnsPrice || 0;
-  const platformFee = process.env.PLATFORM_FEE || 5;
+  const platformFee = this.pricing.platformFee || 5;
   
-  this.pricing.platformFee = platformFee;
   this.pricing.totalAmount = servicePrice + addOnsPrice + platformFee;
-  
   return this.pricing.totalAmount;
 };
 
@@ -296,16 +299,17 @@ bookingSchema.methods.canBeCancelled = function() {
 bookingSchema.methods.shouldAutoConfirm = function() {
   return this.status === 'completed' && 
          !this.confirmation.clientConfirmed && 
+         this.confirmation.autoConfirmAt &&
          new Date() >= this.confirmation.autoConfirmAt;
 };
 
-// Indexes for performance
+// Optimized indexes
 bookingSchema.index({ client: 1, createdAt: -1 });
 bookingSchema.index({ provider: 1, createdAt: -1 });
 bookingSchema.index({ status: 1 });
 bookingSchema.index({ scheduledDate: 1 });
-bookingSchema.index({ bookingId: 1 });
 bookingSchema.index({ 'confirmation.autoConfirmAt': 1 });
+bookingSchema.index({ 'payment.status': 1 }); // Added for payment queries
+bookingSchema.index({ service: 1, status: 1 }); // Added for service-based bookings
 
 module.exports = mongoose.model('Booking', bookingSchema);
-
