@@ -1,0 +1,38 @@
+{
+  "name": "sallih-backend",
+  "version": "1.0.0",
+  "description": "SalliH Platform Backend API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "home-services",
+    "booking",
+    "platform",
+    "api"
+  ],
+  "author": "SalliH Team",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.5.0",
+    "express-validator": "^7.2.1",
+    "firebase-admin": "^13.4.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.15.2",
+    "multer": "^2.0.1",
+    "nodemailer": "^7.0.3",
+    "socket.io": "^4.8.1",
+    "stripe": "^18.2.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
